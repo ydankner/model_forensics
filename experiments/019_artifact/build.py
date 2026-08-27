@@ -35,6 +35,8 @@ TRACE = ROOT / "runs" / "cot_target9_reasoning" / "instrfirst__noclar__complied_
 RESULTS = ROOT / "experiments" / "016_resampling" / "results.jsonl"
 OUT = ROOT / "docs" / "resampling.html"
 SATURATE = 0.50  # |score| at which the tint reaches full strength
+BUCKETS = 12     # intensity steps, emitted as stylesheet classes
+MAX_TINT = 0.62  # alpha at full strength
 
 
 def load() -> tuple[str, list[int], dict[int, list[bool]]]:
@@ -106,8 +108,13 @@ def render(items: list[dict], reasoning: str, by: dict, cuts: list[int]) -> str:
             spans.append(f'<span class="s none" data-tip="{tip}">{text}</span>')
             continue
         s = it["score"]
-        alpha = min(abs(s) / SATURATE, 1.0)
-        cls = "s " + ("up" if s > 0 else "down" if s < 0 else "flat")
+        # Intensity is carried by a class, not an inline custom property. Inline
+        # style attributes are stripped by some sanitising render paths (the page
+        # loses every tint when viewed signed-out), and a stylesheet class survives
+        # that. It also avoids calc() inside rgb(), which is the more fragile of the
+        # two constructs.
+        bucket = max(1, min(BUCKETS, round(min(abs(s) / SATURATE, 1.0) * BUCKETS)))
+        cls = "s " + ("up" if s > 0 else "down" if s < 0 else "flat") + f" a{bucket}"
         if it["sig"]:
             cls += " sig"
         tip = (f"sentence {it['i']}"
@@ -115,12 +122,16 @@ def render(items: list[dict], reasoning: str, by: dict, cuts: list[int]) -> str:
                f"&#10;gaming {it['rate']:.0%} after this sentence"
                f"&#10;n = {it['n_after']} after, {it['n_before']} before"
                + ("&#10;interval excludes zero" if it["sig"] else ""))
-        spans.append(f'<span class="{cls}" style="--a:{alpha:.3f}" '
-                     f'data-tip="{tip}">{text}</span>')
+        spans.append(f'<span class="{cls}" data-tip="{tip}">{text}</span>')
 
+    # One rule per intensity bucket, with the alpha written out literally.
+    tints = "\n".join(
+        f".s.up.a{b}{{background:rgb(var(--gaming) / {b / BUCKETS * MAX_TINT:.3f})}}\n"
+        f".s.down.a{b}{{background:rgb(var(--comply) / {b / BUCKETS * MAX_TINT:.3f})}}"
+        for b in range(1, BUCKETS + 1))
     prompt = html.escape(CONDITIONS["t9_instr_first"].render("even"))
     return TEMPLATE.format(prompt=prompt, trace="".join(spans),
-                           curve=curve(by, len(cuts) - 1))
+                           curve=curve(by, len(cuts) - 1), tints=tints)
 
 
 TEMPLATE = """<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap">
@@ -173,8 +184,7 @@ pre{{font-family:"IBM Plex Mono",monospace;font-size:.8125rem;margin:0;
 .trace{{font-family:"IBM Plex Mono",monospace;font-size:.8125rem;line-height:2;
   white-space:pre-wrap;word-break:break-word}}
 .s{{border-radius:2px;padding:.12em 0;transition:outline-color .12s}}
-.s.up{{background:rgb(var(--gaming)/calc(var(--a)*.62))}}
-.s.down{{background:rgb(var(--comply)/calc(var(--a)*.62))}}
+{tints}
 .s.sig{{box-shadow:inset 3px 0 0 0 rgb(var(--gaming)/1)}}
 .s.down.sig{{box-shadow:inset 3px 0 0 0 rgb(var(--comply)/1)}}
 .s:hover{{outline:1px solid var(--accent);outline-offset:1px;cursor:help}}
