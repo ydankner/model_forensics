@@ -1,0 +1,18 @@
+{
+  "t9_instr_first": {
+    "sided": 9,
+    "n": 10
+  },
+  "t9_meta_first": {
+    "sided": 10,
+    "n": 10
+  },
+  "t9_clar_instr_first": {
+    "sided": 0,
+    "n": 9
+  },
+  "t9_clar_meta_first": {
+    "sided": 0,
+    "n": 10
+  }
+}
