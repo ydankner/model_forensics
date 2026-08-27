@@ -118,43 +118,29 @@ def render(items: list[dict], reasoning: str, by: dict, cuts: list[int]) -> str:
         spans.append(f'<span class="{cls}" style="--a:{alpha:.3f}" '
                      f'data-tip="{tip}">{text}</span>')
 
-    sig = [it for it in items if it.get("sig")]
-    measured = [it for it in items if "score" in it]
-    depth = max((it["n_after"] for it in measured), default=0)
     prompt = html.escape(CONDITIONS["t9_instr_first"].render("even"))
-    sig_rows = "".join(
-        f'<li><span class="badge {"up" if it["score"] > 0 else "down"}">'
-        f'{it["score"]:+.0%}</span>'
-        f'<span class="sigtext">{html.escape(it["text"].strip())}</span>'
-        f'<span class="sigci">[{it["lo"]:+.0%}, {it["hi"]:+.0%}] &middot; '
-        f'n={it["n_after"]}</span></li>'
-        for it in sig) or '<li class="empty">No sentence yet clears the interval.</li>'
-
-    return TEMPLATE.format(
-        prompt=prompt, trace="".join(spans), curve=curve(by, len(cuts) - 1),
-        n_sent=len(items), n_measured=len(measured), n_sig=len(sig),
-        max_depth=depth, total=sum(len(v) for v in by.values()),
-        sig_rows=sig_rows)
+    return TEMPLATE.format(prompt=prompt, trace="".join(spans),
+                           curve=curve(by, len(cuts) - 1))
 
 
 TEMPLATE = """<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap">
-<title>Which Sentence Flipped It</title>
+<title>Resampling Score in compliant CoT</title>
 <style>
 :root {{
   --paper:#fcfcfd; --panel:#f4f5f8; --ink:#141922; --muted:#5d6675; --rule:#e3e6ed;
-  --gaming:168,64,46; --comply:47,107,82; --accent:#3d4a5c;
+  --gaming:168 64 46; --comply:47 107 82; --accent:#3d4a5c;
   --tip-bg:#141922; --tip-ink:#f4f5f8;
 }}
 @media (prefers-color-scheme: dark) {{
   :root:not([data-theme="light"]) {{
     --paper:#0d1015; --panel:#161b23; --ink:#e7eaf0; --muted:#8d96a5; --rule:#242b36;
-    --gaming:224,112,92; --comply:95,176,138; --accent:#9fb0c7;
+    --gaming:224 112 92; --comply:95 176 138; --accent:#9fb0c7;
     --tip-bg:#e7eaf0; --tip-ink:#0d1015;
   }}
 }}
 :root[data-theme="dark"] {{
   --paper:#0d1015; --panel:#161b23; --ink:#e7eaf0; --muted:#8d96a5; --rule:#242b36;
-  --gaming:224,112,92; --comply:95,176,138; --accent:#9fb0c7;
+  --gaming:224 112 92; --comply:95 176 138; --accent:#9fb0c7;
   --tip-bg:#e7eaf0; --tip-ink:#0d1015;
 }}
 *{{box-sizing:border-box}}
@@ -221,21 +207,8 @@ h2{{font-family:Newsreader,Georgia,serif;font-weight:500;font-size:1.5rem;margin
 
 <div class="wrap">
   <header>
-    <p class="eyebrow">Sentence resampling &middot; qwen3.6-27b</p>
-    <h1>Which sentence flipped it</h1>
-    <p class="lede">This model answers <b>9</b> — defying the request — in 90% of
-    rollouts on the prompt below. This is the one rollout in ten that didn't.
-    Each sentence is tinted by its measured causal effect on that outcome: resampling
-    from the prefix before it and after it, and taking the difference.</p>
+    <h1>Resampling Score in compliant CoT</h1>
   </header>
-
-  <div class="stats">
-    <div class="stat"><b>{n_sent}</b><span>sentences in the trace</span></div>
-    <div class="stat"><b>{n_measured}</b><span>with a measured score</span></div>
-    <div class="stat"><b>{n_sig}</b><span>whose CI excludes zero</span></div>
-    <div class="stat"><b>{max_depth}</b><span>max samples per prefix</span></div>
-    <div class="stat"><b>{total}</b><span>continuations sampled</span></div>
-  </div>
 
   <section>
     <p class="eyebrow">The prompt</p>
@@ -250,11 +223,6 @@ h2{{font-family:Newsreader,Georgia,serif;font-weight:500;font-size:1.5rem;margin
     sentence. The band is the 95% Wilson interval. The rate falls from 100% to 0%
     across roughly the first twenty sentences and never recovers across the
     remaining hundred-plus.</p>
-  </section>
-
-  <section>
-    <p class="eyebrow">Sentences whose interval excludes zero</p>
-    <ul class="sig">{sig_rows}</ul>
   </section>
 
   <section>
